@@ -1,16 +1,5 @@
 #!/bin/bash
 
-# # define your server hostname amd ports using environment variables:
-# `DC_HOST` and `DC_PORT`.  Although, if you're testing locally, 
-# the defaults defined below will take care of dev env..
-SERVER_HOSTNAME=$(echo  $HOSTNAME  | awk -F'.' '{print $1}')
-SERVER_PORT="5000"
-
-DIRECTORY=$HOME/dockerComp/
-
-# set the no. of workers to launch on client
-CONTAINER_COUNT=4
-
 # To be used for checking dependencies
 # Consider the deps to be not present
 DOCKER_INSTALLED=0
@@ -23,7 +12,7 @@ user_interrupt(){
     echo -e "Cleaning Up and terminating..."
     if [ -d $DIRECTORY ]; then
         rm -rf $DIRECTORY
-    fi
+    fi   
     exit
 }
 
@@ -31,9 +20,21 @@ trap user_interrupt SIGINT
 trap user_interrupt SIGTSTP
 
 setup_env(){
+    if [ -d $DIRECTORY ]; then
+	echo "cleaning up traces of last installation.."
+        rm -rf $DIRECTORY
+    fi
+
+    if [ -f configuration ]; then
+        source configuration
+    else
+        echo "Config file 'configuration' doesn't exist"
+        exit
+    fi
+    echo $CONTAINER_COUNT
     if [[ -z $DC_HOST ]]; then
-    	echo "export DC_HOST='"$SERVER_HOSTNAME"'" >> ~/.bashrc
-        echo "export DC_PORT='"$SERVER_PORT"'" >> ~/.bashrc
+    	echo "export DC_HOST='"$SERVER_HOSTNAME"'" >> $HOME/.bashrc
+        echo "export DC_PORT='"$SERVER_PORT"'" >> $HOME/.bashrc
         # either source it or set it for current session
         export DC_HOST=$SERVER_HOSTNAME
         export DC_PORT=$SERVER_PORT
@@ -122,7 +123,6 @@ setup_deps(){
     sudo pip install flask
     fi
 
-
     if [ $DOCKER_INSTALLED -eq 0 ]; then # install docker
         if [[ ! -z $APT_GET_CMD ]]; then # deb based
             docker_install=$command" docker.io"
@@ -143,18 +143,29 @@ setup_deps(){
 
 
 setup_app(){
-    cd ~
+    cd $HOME
     git clone https://github.com/arcolife/dockerComp.git $DIRECTORY
     cd $DIRECTORY
     # remove server side code, useless for normal users
     git config core.sparseCheckout true
     echo src/client/ > .git/info/sparse-checkout
     git checkout master
-    cd src/client/
-    ./scripts/launch.sh $CONTAINER_COUNT
-    ./scripts/test.sh
-    echo -e "\n..cleaning up and removing "$DIRECTORY
-    rm -rf $DIRECTORY
+    cd src/client/scripts/
+    
+    echo -e "launching workers.."
+    ./launch_workers $CONTAINER_COUNT
+    
+    echo -e "testing connection to server.."
+    ./test_server_conn
+    
+    # # copy the client daemon from here
+    # cp ./scripts/slave_manager $HOME/
+    # echo -e "\n..cleaning up and removing "$DIRECTORY
+    # rm -rf $DIRECTORY
+    # cd $HOME
+
+    echo -e "\n starting the client task manager daemon now.."
+    nohup ./slave_manager &
 }
 
 setup_env

@@ -12,10 +12,16 @@ import requests, json
 
 app = Flask(__name__, static_url_path='')
 
+BUSY=0
 
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({'client_test': 'OK'})
+
+
+@app.route('/status/', methods=['GET'])
+def worker_status():
+    return str(BUSY)
 
 
 @app.route('/test/client/', methods=['POST'])
@@ -23,22 +29,27 @@ def test():
     print request.data
     return jsonify({'got response from server': 'OK'})
 
+
 @app.route('/tasks/', methods=['POST'])
 def get_tasks():
-    received = ast.literal_eval(request.data)
+    BUSY = 1
+    # received = ast.literal_eval(request.data)
+    received = json.loads(request.data)
     #print received[0]
     result = 0
-    for i in received:
+    for i in received['dataset']:
         result += sum(i)
+    BUSY = 0
     return Response(str(result))
 
-@app.route('/get_task', methods=['POST'])
-def get_task():
-    while(True):
-        ip = socket.gethostname()
-        p = subprocess.Popen(["./scripts/request_task.sh",ip], stdout=subprocess.PIPE)
-        out, err = p.communicate()
-        ######## add stuff ########
+
+# @app.route('/assign', methods=['POST'])
+# def get_task():
+#     while(True):
+#         ip = socket.gethostname()
+#         p = subprocess.Popen(["./scripts/request_task.sh",ip], stdout=subprocess.PIPE)
+#         out, err = p.communicate()
+#         ######## add stuff ########
 
 if __name__ == '__main__':
     try:
